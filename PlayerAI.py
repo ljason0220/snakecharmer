@@ -39,42 +39,54 @@ class PlayerAI:
         self.turn_count += 1
 
         #if its the first turn, you obviously dont wanna run towards the wall first thing
-        if self.turn_count == 1:
+        if self.turn_count <= 2:
             self.target = world.path.get_shortest_path(friendly_unit.position,
                         world.util.get_closest_enemy_head_from(friendly_unit.position, friendly_unit.snake).position,
                         friendly_unit.snake)[0]
             print(friendly_unit.position)
             print(self.target)
             friendly_unit.move(self.target)
+        else:
+            #calculate current threat
+            for body_chunk in friendly_unit.snake:
+                if len(friendly_unit.snake) != 1:
+                    chunk_threat = world.path.get_shortest_path_distance(body_chunk,
+                                world.util.get_closest_enemy_head_from(body_chunk, friendly_unit.snake).position)
+                    if self.threat_turns == None or chunk_threat < self.threat_turns:
+                        self.threat_turns = chunk_threat
+                else:
+                    self.threat_turns = 9999
 
-        #calculate current threat
-        for body_chunk in friendly_unit.snake:
-            chunk_threat = world.path.get_shortest_path_distance(body_chunk,
-                        world.util.get_closest_enemy_head_from(body_chunk, friendly_unit.snake).position)
-            if self.threat_turns == None or chunk_threat < self.threat_turns:
-                self.threat_turns = chunk_threat
+            # returns Tuple
+            closest_friendly_position = world.util.get_closest_friendly_territory_from(friendly_unit.position, friendly_unit.body).position
+            closest_enemy_from_friendly = world.util.get_closest_enemy_head_from(friendly_unit.position, friendly_unit.body).position
+            #calculate safety_turns/ returns int
+            self.safety_turns = world.path.get_shortest_path_distance(friendly_unit.position, closest_friendly_position)
 
-        # returns Tuple
-        closest_friendly_position = world.util.get_closest_friendly_territory_from(friendly_unit.position, friendly_unit.body).position
 
-        #calculate safety_turns/ returns int
-        self.safety_turns = world.path.get_shortest_path_distance(friendly_unit.position, closest_friendly_position)
+            print("Threat:" + str(self.threat_turns))
+            print("Safety:" + str(self.safety_turns))
+            #if we are safe, continue grabbing territory
+            if friendly_unit.position in friendly_unit.territory:
+                print("Closest_friendly_position:" + str(closest_friendly_position))
+                closest_available_territory = world.util.get_closest_capturable_territory_from(friendly_unit.position,
+                                                                                               friendly_unit.body).position
+                next_position = world.path.get_shortest_path(friendly_unit.position, closest_available_territory, friendly_unit.body)[0]
+                friendly_unit.move(next_position)
+            # if you are close to enemy
+            elif self.safety_turns + 3 >= self.threat_turns:
+                # returns list of tuples
+                print("Whoa these guys are too close")
+                next_position = world.path.get_shortest_path(friendly_unit.position, closest_friendly_position, friendly_unit.snake)[0]
+                friendly_unit.move(next_position)
+            # if you hit a wall, head back to closest territory
+            elif self.check_wall(world, friendly_unit):
+                next_position = world.path.get_shortest_path(friendly_unit.position, closest_enemy_from_friendly, friendly_unit.body)[0]
+                friendly_unit.move(next_position)
 
-        '''
-        print("Threat:" + str(self.threat_turns))
-        print("Safety:" + str(self.safety_turns))
-        #if we are safe, continue grabbing territory
-        if self.safety_turns + 2 >= self.threat_turns:
-            # returns list of tuples
-            next_position = world.path.get_shortest_path(friendly_unit.position, closest_friendly_position, friendly_unit.body)[0]
-            friendly_unit.move(next_position)
-        # if you hit your territory again
-        if closest_friendly_position in world.get_neighbours(friendly_unit.position).values():
-            print("Closest_friendly_position:" + str(closest_friendly_position))
-            closest_available_territory = world.util.get_closest_capturable_territory_from(friendly_unit.position, friendly_unit.body).position
-            next_position = world.path.get_shortest_path(friendly_unit.position, closest_available_territory, friendly_unit.body)[0]
-            friendly_unit.move(next_position)
-        # if you hit a wall, head back to closest territory
-        '''
+    def check_wall(self, world, friendly_unit):
+        for point in world.get_neighbours(friendly_unit.position).values():
+            if world.is_wall(point):
+                print("I am at a wall")
+                return True;
 
-        
